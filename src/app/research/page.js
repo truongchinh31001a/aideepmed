@@ -1,62 +1,65 @@
-"use client"; // Đánh dấu đây là Client Component
+"use client"; // Mark this as a Client Component
 
 import { useState, useEffect } from 'react';
-import { Row, Col, Input, Checkbox, List, Card, Modal } from 'antd';
-import { SearchOutlined } from '@ant-design/icons'; // Import icon kính lúp
+import { Row, Col, Input, Checkbox, List, Card, Button, Pagination } from 'antd';
+import { SearchOutlined } from '@ant-design/icons'; 
+import { useRouter } from 'next/navigation'; 
 
 export default function ResearchPage() {
-  const [profileData, setProfileData] = useState([]); // Dữ liệu hồ sơ từ API
+  const [profileData, setProfileData] = useState([]); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState([]);
-  const [isModalVisible, setIsModalVisible] = useState(false); // Trạng thái hiện modal
-  const [selectedImageInfo, setSelectedImageInfo] = useState(null); // Dữ liệu ảnh được chọn
-  const [secondPrediction, setSecondPrediction] = useState(null); // Lưu dữ liệu thứ 2 từ predictions
+  const [expanded, setExpanded] = useState(false); 
+  const [currentPage, setCurrentPage] = useState(1); 
+  const [pageSize] = useState(10); 
+  const router = useRouter(); 
 
-  // Hàm gọi API từ server để lấy dữ liệu từ MongoDB
+  // Fetch data from MongoDB and sort by creation date (newest to oldest)
   const fetchProfileData = async () => {
     try {
-      const response = await fetch('/api/profiles'); // Gọi API từ `/api/profiles`
-      const { profileData } = await response.json(); // Lấy dữ liệu từ response
-      setProfileData(profileData); // Lưu lại dữ liệu vào state
+      const response = await fetch('/api/profiles'); 
+      const data = await response.json(); 
+      const sortedData = data.profileData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setProfileData(sortedData); 
     } catch (error) {
       console.error('Failed to fetch profile data:', error);
     }
   };
 
   useEffect(() => {
-    fetchProfileData(); // Gọi API khi component mount
+    fetchProfileData(); 
   }, []);
 
-  // Hiển thị modal khi ảnh được bấm
-  const showModal = (imageInfo) => {
-    setSelectedImageInfo(imageInfo); // Lưu thông tin ảnh được chọn
-
-    // Kiểm tra và lấy phần tử thứ 2 từ `predictions` nếu có
-    if (imageInfo.thirdPartyInfo && imageInfo.thirdPartyInfo.predictions && imageInfo.thirdPartyInfo.predictions[0]) {
-      setSecondPrediction(imageInfo.thirdPartyInfo.predictions[0][1]); // Lấy phần tử thứ 2 từ `predictions`
-    } else {
-      setSecondPrediction(null); // Không có dữ liệu tại phần tử thứ 2
-    }
-
-    setIsModalVisible(true); // Hiện modal
+  // Scroll to top function when the user changes page
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth', // Smooth scrolling
+    });
   };
 
-  // Đóng modal
-  const handleCancel = () => {
-    setIsModalVisible(false);
+  // Handle pagination page change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    scrollToTop(); // Scroll back to the top of the page when pagination changes
   };
 
-  // Xử lý tìm kiếm
+  // Handle search functionality
   const handleSearch = (value) => {
     setSearchQuery(value);
   };
 
-  // Xử lý thay đổi bộ lọc
+  // Handle filter changes
   const handleFilterChange = (checkedValues) => {
     setSelectedFilters(checkedValues);
   };
 
-  // Lọc dữ liệu dựa trên từ khóa tìm kiếm và bộ lọc
+  // Navigate to the profile detail page
+  const handleProfileClick = (profileId) => {
+    router.push(`/profiles/${profileId}`); 
+  };
+
+  // Filter data based on the search query and filters
   const filteredData = profileData.filter(item => {
     const matchesSearchQuery =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -71,22 +74,25 @@ export default function ResearchPage() {
     return matchesSearchQuery && matchesFilter;
   });
 
+  // Calculate the data to display on the current page
+  const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="research-page">
       <Row gutter={[16, 16]} className="research-content">
         <Col xs={24} md={6} className="filter-section">
           <div className="filter-wrapper">
-            <Card title="Tìm kiếm & Bộ lọc" className="mb-4">
+            <Card title="Search & Filters" className="mb-4">
               <Input.Search
-                placeholder="Nhập từ khóa tìm kiếm..."
-                enterButton={<SearchOutlined />} // Sử dụng icon kính lúp
+                placeholder="Enter search keywords..."
+                enterButton={<SearchOutlined />}
                 size="large"
                 onSearch={handleSearch}
                 className="mb-4"
               />
 
               <Checkbox.Group
-                options={['Tai', 'Mũi', 'Họng']}
+                options={['Ear', 'Nose', 'Throat']}
                 onChange={handleFilterChange}
                 className="mb-4"
                 direction="vertical"
@@ -96,66 +102,94 @@ export default function ResearchPage() {
         </Col>
 
         <Col xs={24} md={18}>
-          <Card title="Kết quả tìm kiếm">
+          <Card title="Search Results">
             <List
               itemLayout="vertical"
               size="large"
-              dataSource={filteredData}
-              renderItem={item => (
-                <List.Item key={item._id}>
-                  <List.Item.Meta
-                    title={<h3>{item.name}</h3>}
-                    description={(
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        {item.images.map(image => (
-                          <div key={image.filename} style={{ cursor: 'pointer' }}>
-                            {/* Hiển thị hình ảnh xếp hàng ngang */}
-                            {image.path && (
-                              <img
-                                src={image.path} // Đường dẫn ảnh từ MongoDB
-                                alt={image.originalname} // Alt text cho ảnh
-                                style={{ width: '100px', height: '100px', objectFit: 'cover' }} // Kích thước ảnh
-                                onClick={() => showModal(image)} // Bấm vào ảnh hiện modal
-                              />
-                            )}
+              dataSource={paginatedData} // Only show paginated data
+              renderItem={item => {
+                const displayedImages = expanded ? item.images : item.images.slice(0, 5); // Show all images if expanded
+
+                return (
+                  <List.Item
+                    key={item._id}
+                    onClick={() => handleProfileClick(item._id)}
+                    style={{
+                      cursor: 'pointer',
+                      backgroundColor: '#f0f0f0',
+                      padding: '16px',
+                      marginBottom: '16px',
+                      borderRadius: '8px',
+                      border: '1px solid #dcdcdc',
+                    }}
+                  >
+                    <List.Item.Meta
+                      title={(
+                        <h3 className="item-name">
+                          {item.name}
+                        </h3>
+                      )}
+                      description={(
+                        <div>
+                          <p style={{ color: 'gray' }}>
+                            Created on: {new Date(item.createdAt).toLocaleDateString('en-US')}
+                          </p>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {displayedImages.map((image, index) => (
+                              <div key={image.filename} style={{ position: 'relative' }}>
+                                {image.path && (
+                                  <img
+                                    src={image.path}
+                                    alt={image.originalname}
+                                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '5px' }}
+                                  />
+                                )}
+
+                                {/* If there are more than 5 images, display "5+" on the last image */}
+                                {!expanded && index === 4 && item.images.length > 5 && (
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      width: '100%',
+                                      height: '100%',
+                                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                      color: 'white',
+                                      display: 'flex',
+                                      justifyContent: 'center',
+                                      alignItems: 'center',
+                                      fontSize: '24px',
+                                      borderRadius: '5px',
+                                    }}
+                                  >
+                                    +{item.images.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  />
-                </List.Item>
-              )}
+                        </div>
+                      )}
+                    />
+                  </List.Item>
+                );
+              }}
             />
+
+            {/* Pagination Component */}
+            <div className="pagination-container text-center mt-4">
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={filteredData.length} // Total number of filtered profiles
+                onChange={handlePageChange} // Update page when the user changes the page
+              />
+            </div>
+
           </Card>
         </Col>
       </Row>
-
-      {/* Modal hiện thông tin ảnh và tình trạng */}
-      <Modal
-        title="Thông tin hình ảnh"
-        visible={isModalVisible}
-        onCancel={handleCancel}
-        footer={null}
-      >
-        {selectedImageInfo && (
-          <div>
-            {/* Chỉ hiển thị ảnh nếu có */}
-            {selectedImageInfo.path && (
-              <img
-                src={selectedImageInfo.path}
-                alt={selectedImageInfo.originalname}
-                style={{ maxWidth: '100%', height: 'auto' }}
-              />
-            )}
-            {/* Chỉ hiển thị tình trạng (phần tử thứ 2 từ predictions) nếu có */}
-            {secondPrediction && (
-              <div style={{ marginTop: '20px' }}>
-                <p><strong>Tình trạng:</strong> {secondPrediction}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
 
       <style jsx>{`
         .research-page {
@@ -179,7 +213,15 @@ export default function ResearchPage() {
           height: 100vh;
           position: sticky;
           top: 0;
-          border-right: 1px solid #ccc;
+        }
+
+        .item-name {
+          text-decoration: none;
+          transition: text-decoration 0.3s ease;
+        }
+
+        .item-name:hover {
+          text-decoration: underline;
         }
       `}</style>
     </div>

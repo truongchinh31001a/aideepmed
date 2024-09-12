@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import connectMongo from '../../../../utils/connectMongo'; // Hàm kết nối tới MongoDB
-import Profile from '../../../../models/Profile'; // Model Profile
+import connectMongo from '../../../../utils/connectMongo'; 
+import Profile from '../../../../models/Profile'; 
 
 export async function GET() {
   try {
-    await connectMongo(); // Kết nối đến MongoDB
+    await connectMongo(); 
 
-    const profileData = await Profile.find(); // Lấy dữ liệu từ collection `profiles`
+    const profileData = await Profile.find(); 
 
     return NextResponse.json({ profileData });
   } catch (error) {
