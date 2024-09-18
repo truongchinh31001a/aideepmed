@@ -2,7 +2,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import ClientRootLayout from './ClientRootLayout'; // Import ClientRootLayout
 
-// Define local fonts
+// Định nghĩa font cục bộ
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
@@ -21,9 +21,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen flex flex-col">
-        {/* Nội dung client-side thông qua ClientRootLayout */}
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <body className="min-h-screen flex flex-col" suppressHydrationWarning>
         <ClientRootLayout>
           {children}
         </ClientRootLayout>

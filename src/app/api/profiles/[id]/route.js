@@ -1,17 +1,7 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import Profile from '@models/Profile';
+import connectMongo from 'utils/connectMongo';
 
-// Hàm kết nối MongoDB
-const connectMongo = async () => {
-  if (mongoose.connection.readyState >= 1) return; // Kiểm tra xem có kết nối chưa
-  return mongoose.connect('mongodb://localhost:27017/imageDB', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-};
-
-// Xử lý yêu cầu GET để lấy hồ sơ dựa trên ID
 export async function GET(req, { params }) {
   const { id } = params; // Lấy ID từ URL
 

@@ -1,33 +1,34 @@
-"use client"; // Mark this as a Client Component
+"use client";
 
 import { useState, useEffect } from 'react';
-import { Row, Col, Input, Checkbox, List, Card, Button, Pagination } from 'antd';
-import { SearchOutlined } from '@ant-design/icons'; 
-import { useRouter } from 'next/navigation'; 
+import { Row, Col, Input, Checkbox, List, Card, Pagination } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import diacritics from 'diacritics'; // Import thư viện diacritics
 
 export default function ResearchPage() {
-  const [profileData, setProfileData] = useState([]); 
+  const [profileData, setProfileData] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState([]);
-  const [expanded, setExpanded] = useState(false); 
-  const [currentPage, setCurrentPage] = useState(1); 
-  const [pageSize] = useState(10); 
-  const router = useRouter(); 
+  const [expanded, setExpanded] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const router = useRouter();
 
   // Fetch data from MongoDB and sort by creation date (newest to oldest)
   const fetchProfileData = async () => {
     try {
-      const response = await fetch('/api/profiles'); 
-      const data = await response.json(); 
+      const response = await fetch('/api/profiles');
+      const data = await response.json();
       const sortedData = data.profileData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setProfileData(sortedData); 
+      setProfileData(sortedData);
     } catch (error) {
       console.error('Failed to fetch profile data:', error);
     }
   };
 
   useEffect(() => {
-    fetchProfileData(); 
+    fetchProfileData();
   }, []);
 
   // Scroll to top function when the user changes page
@@ -46,32 +47,51 @@ export default function ResearchPage() {
 
   // Handle search functionality
   const handleSearch = (value) => {
-    setSearchQuery(value);
+    setSearchQuery(value); // Cập nhật searchQuery
+    setCurrentPage(1); // Reset về trang đầu khi tìm kiếm
   };
 
   // Handle filter changes
   const handleFilterChange = (checkedValues) => {
-    setSelectedFilters(checkedValues);
+    setSelectedFilters(checkedValues); // Cập nhật selectedFilters
+    setCurrentPage(1); // Reset về trang đầu khi thay đổi bộ lọc
   };
 
   // Navigate to the profile detail page
   const handleProfileClick = (profileId) => {
-    router.push(`/profiles/${profileId}`); 
+    router.push(`/profiles/${profileId}`);
+  };
+
+  // Function to normalize the search query and data
+  const normalizeString = (str) => {
+    return diacritics.remove(str.toLowerCase().replace(/[_\.]/g, '').replace(/\s+/g, ' ')); // Loại bỏ dấu, ký tự đặc biệt và thay thế khoảng trắng liên tiếp
   };
 
   // Filter data based on the search query and filters
   const filteredData = profileData.filter(item => {
-    const matchesSearchQuery =
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.images.some(img => img.originalname.toLowerCase().includes(searchQuery.toLowerCase()));
+    const normalizedQuery = normalizeString(searchQuery); // Normalize search query
 
-    const matchesFilter =
-      selectedFilters.length === 0 ||
-      selectedFilters.some(filter =>
-        item.name.toLowerCase().includes(filter.toLowerCase())
+    const matchesSearchQuery =
+      normalizeString(item.name).includes(normalizedQuery) || // Tìm kiếm trong tên hồ sơ
+      item.images.some(img =>
+        normalizeString(img.originalname).includes(normalizedQuery) || // Tìm kiếm trong tên hình ảnh
+        img.thirdPartyInfo.predictions.some(prediction =>
+          normalizeString(prediction[1]).includes(normalizedQuery) // Tìm kiếm trong predictions
+        )
       );
 
-    return matchesSearchQuery && matchesFilter;
+    // Kiểm tra xem item có khớp với bộ lọc không
+    const matchesFilter =
+      selectedFilters.length === 0 || // Nếu không có bộ lọc nào được chọn
+      selectedFilters.some(filter => // Lặp qua từng bộ lọc
+        item.images.some(img => // Lặp qua từng image
+          img.thirdPartyInfo.predictions.some(prediction =>
+            normalizeString(prediction[0]).includes(normalizeString(filter)) // So sánh với giá trị trong predictions
+          )
+        )
+      );
+
+    return matchesSearchQuery && matchesFilter; // Trả về true nếu item phù hợp với cả hai tiêu chí
   });
 
   // Calculate the data to display on the current page
@@ -87,8 +107,9 @@ export default function ResearchPage() {
                 placeholder="Enter search keywords..."
                 enterButton={<SearchOutlined />}
                 size="large"
-                onSearch={handleSearch}
+                onSearch={handleSearch} // Gọi hàm handleSearch
                 className="mb-4"
+                suppressHydrationWarning // Thêm thuộc tính này
               />
 
               <Checkbox.Group
@@ -96,6 +117,7 @@ export default function ResearchPage() {
                 onChange={handleFilterChange}
                 className="mb-4"
                 direction="vertical"
+                suppressHydrationWarning // Thêm thuộc tính này
               />
             </Card>
           </div>
@@ -106,9 +128,9 @@ export default function ResearchPage() {
             <List
               itemLayout="vertical"
               size="large"
-              dataSource={paginatedData} // Only show paginated data
+              dataSource={paginatedData}
               renderItem={item => {
-                const displayedImages = expanded ? item.images : item.images.slice(0, 5); // Show all images if expanded
+                const displayedImages = expanded ? item.images : item.images.slice(0, 5);
 
                 return (
                   <List.Item
@@ -125,9 +147,9 @@ export default function ResearchPage() {
                   >
                     <List.Item.Meta
                       title={(
-                        <h3 className="item-name">
+                        <div className="item-name"> {/* Thay đổi từ <h4> thành <div> */}
                           {item.name}
-                        </h3>
+                        </div>
                       )}
                       description={(
                         <div>
@@ -145,7 +167,6 @@ export default function ResearchPage() {
                                   />
                                 )}
 
-                                {/* If there are more than 5 images, display "5+" on the last image */}
                                 {!expanded && index === 4 && item.images.length > 5 && (
                                   <div
                                     style={{
@@ -177,13 +198,12 @@ export default function ResearchPage() {
               }}
             />
 
-            {/* Pagination Component */}
             <div className="pagination-container text-center mt-4">
               <Pagination
                 current={currentPage}
                 pageSize={pageSize}
-                total={filteredData.length} // Total number of filtered profiles
-                onChange={handlePageChange} // Update page when the user changes the page
+                total={filteredData.length}
+                onChange={handlePageChange}
               />
             </div>
 

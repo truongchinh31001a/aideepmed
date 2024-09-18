@@ -6,14 +6,14 @@ import UploadArea from '@/components/UploadArea';
 import ImagePreview from '@/components/ImagePreview';
 import PredictionResult from '@/components/PredictionResult';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { createProfile } from '../../services/apiService'; // Import hàm API
+import { createProfile } from '../../services/apiService';
 
 export default function Home() {
   const [fileList, setFileList] = useState([]);
   const [previewImage, setPreviewImage] = useState('');
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
-  const [loading, setLoading] = useState(false); // Trạng thái loading
-  const [result, setResult] = useState(null); // Trạng thái hiển thị kết quả
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
   const handleChange = (info) => {
     setFileList(info.fileList);
@@ -44,8 +44,8 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const data = await createProfile(fileList); // Gọi hàm API để gửi ảnh
-      setResult(data); // Lưu lại kết quả trả về từ BE
+      const data = await createProfile(fileList);
+      setResult(data);
       message.success('Prediction completed.');
     } catch (error) {
       message.error(error.message || 'Something went wrong.');
@@ -56,7 +56,7 @@ export default function Home() {
 
   const handleClear = () => {
     setFileList([]);
-    setResult(null); // Reset lại trạng thái kết quả
+    setResult(null);
     message.info('Files cleared.');
   };
 
@@ -86,10 +86,10 @@ export default function Home() {
         )}
 
         <Modal
-          visible={isPreviewVisible}
+          open={isPreviewVisible}
           footer={null}
           onCancel={() => setIsPreviewVisible(false)}
-          maskStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+          styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
         >
           <img alt="Preview" style={{ width: '100%' }} src={previewImage} />
         </Modal>
@@ -105,7 +105,6 @@ export default function Home() {
               Predict
             </Button>
 
-            {/* Chỉ hiển thị nút Clear khi fileList.length > 0 */}
             {fileList.length > 0 && (
               <Button
                 type="danger"

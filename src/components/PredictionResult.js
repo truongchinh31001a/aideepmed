@@ -1,11 +1,15 @@
-import { Card, Button, Modal } from 'antd';
+import { Card, Button, Modal, Form, Input, message } from 'antd';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Import useRouter for navigation
+import { WarningOutlined } from '@ant-design/icons';
+import { submitReport } from 'services/submitReport';
+import { useRouter } from 'next/navigation';
 
 export default function PredictionResult({ result }) {
-  const router = useRouter(); // Use useRouter for navigation
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [comment, setComment] = useState('');
+  const router = useRouter();  // Sử dụng router để chuyển hướng
 
   if (!result || !result.profile || !result.profile.images) {
     return <p>No result available.</p>;
@@ -13,67 +17,93 @@ export default function PredictionResult({ result }) {
 
   const { images } = result.profile;
 
-  // Handle card click to open modal
+  // Mở modal khi nhấp vào ảnh
   const handleCardClick = (image) => {
     setSelectedImage(image);
-    setIsModalVisible(true);
+    setIsModalOpen(true);
+    setShowReportForm(false); // Reset form khi mở modal
   };
 
-  // Handle modal close
+  // Đóng modal
   const handleModalClose = () => {
-    setIsModalVisible(false);
+    setIsModalOpen(false);
+    setComment(''); // Xóa comment khi đóng modal
+  };
+
+  // Mở form báo cáo
+  const handleReportClick = () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      message.warning('You need to log in to submit a report');
+      router.push('/auth');  // Chuyển hướng đến trang đăng nhập
+    } else {
+      setShowReportForm(true);
+    }
+  };
+
+  // Gửi báo cáo
+  const handleReportSubmit = async () => {
+    const token = localStorage.getItem('token');
+    const response = await submitReport(result.profile._id, selectedImage._id, comment, token);
+
+    if (response.success) {
+      message.success(response.message);
+      setShowReportForm(false); // Ẩn form sau khi gửi thành công
+      setComment('');  // Xóa comment sau khi gửi
+    } else {
+      message.error(response.message);
+    }
+  };
+
+  const getDiagnosis = (image) => {
+    if (image.thirdPartyInfo && image.thirdPartyInfo.predictions && image.thirdPartyInfo.predictions[0] && image.thirdPartyInfo.predictions[0][1]) {
+      return image.thirdPartyInfo.predictions[0][1];
+    }
+    return 'No diagnosis available';
   };
 
   return (
     <>
       <h1 className="text-4xl font-bold text-red-500 mb-4">Result</h1>
       <p className="text-lg text-blue-400 mb-4">Your diagnosis is as follows:</p>
-      
+
       <div className={`grid ${images.length === 1 ? 'single-card' : ''}`}>
         {images.map((image, index) => (
           <Card
             key={index}
             hoverable
             cover={<img alt={image.originalname} src={image.path} />}
-            onClick={() => handleCardClick(image)} // Handle card click
-            className="shadow-lg mx-auto"
+            onClick={() => handleCardClick(image)}
+            className="shadow-lg mx-auto relative"
             style={{
-              width: '230px', // Standard width for the card
+              width: '230px',
               height: 'auto',
-              borderRadius: '10px', // Rounded corners
-              border: '2px solid red', // Red border for the card
-              boxShadow: '0px 6px 20px rgba(0, 0, 0, 0.2)', // Shadow box effect
+              borderRadius: '10px',
+              border: '2px solid red',
+              boxShadow: '0px 6px 20px rgba(0, 0, 0, 0.2)',
             }}
           >
-            <div className="text-center text-lg font-semibold">
-              {image.thirdPartyInfo
-                ? `Diagnosis: ${image.thirdPartyInfo.predictions[0][1]}`
-                : 'No diagnosis available'}
+            <div className="text-center text-lg font-semibold mb-8">
+              {`Diagnosis: ${getDiagnosis(image)}`}
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Back button to navigate to the home page */}
       <div className="mt-8 text-center">
-        <Button
-          type="primary"
-          onClick={() => window.location.href = '/'} 
-        >
+        <Button type="primary" onClick={() => window.location.href = '/'}>
           Back
         </Button>
       </div>
 
-      {/* Modal to show image and details */}
       <Modal
-        visible={isModalVisible}
+        open={isModalOpen}
         footer={null}
         onCancel={handleModalClose}
-        width={800} // Adjust the width of the modal
+        width={800}
       >
         {selectedImage && (
           <div className="modal-content">
-            {/* Left side: Image */}
             <div className="modal-image">
               <img
                 alt={selectedImage.originalname}
@@ -81,13 +111,39 @@ export default function PredictionResult({ result }) {
                 style={{ width: '100%', borderRadius: '10px' }}
               />
             </div>
-
-            {/* Right side: Information */}
             <div className="modal-info">
+              <h3>status</h3>
               <h3>{selectedImage.thirdPartyInfo?.predictions?.[0]?.[0] || 'Unknown'}</h3>
-              <p><strong>Original Name:</strong> {selectedImage.originalname}</p>
-              {selectedImage.thirdPartyInfo?.predictions?.[0]?.[1] && (
-                <p><strong>Diagnosis:</strong> {selectedImage.thirdPartyInfo.predictions[0][1]}</p>
+              <p>
+                <strong>Diagnosis:</strong> {getDiagnosis(selectedImage)}
+              </p>
+
+              {!showReportForm ? (
+                <Button
+                  icon={<WarningOutlined />}
+                  onClick={handleReportClick}
+                  className="report-button"
+                >
+                  Report
+                </Button>
+              ) : (
+                <Form layout="vertical" style={{ marginTop: '20px' }}>
+                  <Form.Item label="Comment">
+                    <Input.TextArea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Enter your report comment here"
+                      rows={4}
+                    />
+                  </Form.Item>
+                  <Button
+                    type="primary"
+                    onClick={handleReportSubmit}
+                    style={{ marginTop: '10px' }}
+                  >
+                    Submit Report
+                  </Button>
+                </Form>
               )}
             </div>
           </div>
@@ -97,8 +153,9 @@ export default function PredictionResult({ result }) {
       <style jsx>{`
         .grid {
           display: grid;
-          grid-template-columns: repeat(1, 1fr); /* 1 card per row for small screens */
-          justify-items: center; /* Center the cards horizontally */
+          grid-template-columns: repeat(1, 1fr);
+          justify-items: center;
+          gap: 20px;
         }
 
         .single-card {
@@ -110,13 +167,13 @@ export default function PredictionResult({ result }) {
 
         @media (min-width: 768px) {
           .grid {
-            grid-template-columns: repeat(2, 1fr); /* 2 cards per row for medium screens */
+            grid-template-columns: repeat(2, 1fr);
           }
         }
 
         @media (min-width: 1024px) {
           .grid {
-            grid-template-columns: repeat(3, 1fr); /* 3 cards per row for large screens */
+            grid-template-columns: repeat(3, 1fr);
           }
         }
 
@@ -143,6 +200,16 @@ export default function PredictionResult({ result }) {
           margin-bottom: 8px;
           font-size: 16px;
           color: gray;
+        }
+
+        .report-button {
+          background-color: white;
+          border: none;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .report-button:hover {
+          background-color: #f0f0f0;
         }
       `}</style>
     </>

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Spin } from 'antd';
+import { Spin, Modal } from 'antd';
 import { useParams } from 'next/navigation';
 
 export default function ProfileDetail() {
   const { id } = useParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // Function to call API to fetch profile data based on ID
   const fetchProfileData = async () => {
@@ -28,6 +30,11 @@ export default function ProfileDetail() {
     }
   }, [id]);
 
+  const handleImageClick = (image) => {
+    setSelectedImage(image);
+    setModalOpen(true);
+  };
+
   if (loading) {
     return <Spin size="large" />;
   }
@@ -39,7 +46,7 @@ export default function ProfileDetail() {
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
       <div className="flex-grow overflow-y-auto pt-20 px-4">
-        <h2 className="text-3xl font-bold text-center mb-6 mt-5">{profile.name}</h2> {/* Profile Title */}
+        <h2 className="text-3xl font-bold text-center mb-6 mt-5">{profile.name}</h2>
         <div className="space-y-6">
           {profile.images.map((image, index) => {
             const title = image.thirdPartyInfo?.predictions?.[0]?.[0] || 'Unknown';
@@ -48,7 +55,10 @@ export default function ProfileDetail() {
                 key={index} 
                 className="flex flex-col md:flex-row items-center md:space-x-6 p-4 max-w-[900px] mx-auto"
               >
-                <div className="w-36 h-36 flex-shrink-0 mb-4 md:mb-0">
+                <div 
+                  className="w-36 h-36 flex-shrink-0 mb-4 md:mb-0 cursor-pointer"
+                  onClick={() => handleImageClick(image)}
+                >
                   <img
                     src={image.path}
                     alt={image.originalname}
@@ -66,6 +76,31 @@ export default function ProfileDetail() {
           })}
         </div>
       </div>
+
+      <Modal
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+        width={800}
+      >
+        {selectedImage && (
+          <div>
+            <img
+              src={selectedImage.path}
+              alt={selectedImage.originalname}
+              style={{ width: '100%', height: 'auto' }}
+            />
+            <h3 className="mt-4 text-lg font-semibold capitalize">
+              {selectedImage.thirdPartyInfo?.predictions?.[0]?.[0] || 'Unknown'}
+            </h3>
+            {selectedImage.thirdPartyInfo?.predictions?.[0]?.[1] && (
+              <p className="text-gray-600">
+                <strong>Diagnosis:</strong> {selectedImage.thirdPartyInfo.predictions[0][1]}
+              </p>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

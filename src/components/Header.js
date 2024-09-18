@@ -1,29 +1,56 @@
 import { useState, useEffect } from 'react';
-import { HomeOutlined, BarChartOutlined, InfoCircleOutlined, FileSearchOutlined, MenuOutlined } from '@ant-design/icons';
-import { Menu, Dropdown, Button } from 'antd';
+import { HomeOutlined, BarChartOutlined, InfoCircleOutlined, FileSearchOutlined, MenuOutlined, UserOutlined } from '@ant-design/icons';
+import { Dropdown, Button, Avatar, message } from 'antd';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
-  const [showHeader, setShowHeader] = useState(true); // State để điều khiển hiển thị header
-  const [lastScrollY, setLastScrollY] = useState(0);  // Theo dõi vị trí scroll cuối cùng
+  const [showHeader, setShowHeader] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [user, setUser] = useState(null); 
+  const router = useRouter(); 
 
+  // Kiểm tra token và lấy thông tin người dùng
   useEffect(() => {
+    const checkSession = async () => {
+      const token = localStorage.getItem('token'); // Lấy token từ localStorage
+      if (token) {
+        try {
+          const response = await fetch('/api/auth/session', {
+            headers: {
+              'Authorization': `Bearer ${token}` // Gửi token trong header
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setUser(data.user); // Lưu thông tin người dùng
+          } else {
+            localStorage.removeItem('token'); // Xóa token nếu không hợp lệ
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+    };
+  
+    checkSession();
+
     const handleMouseMove = (event) => {
       if (event.clientY <= 50) {
-        setShowHeader(true);  // Hiển thị header khi chuột ở gần đầu trang
+        setShowHeader(true);
       }
     };
 
     const handleScroll = () => {
       if (window.scrollY < lastScrollY || window.scrollY === 0) {
-        setShowHeader(true);  // Hiển thị header khi cuộn lên
+        setShowHeader(true);
       } else {
-        setShowHeader(false); // Ẩn header khi cuộn xuống
+        setShowHeader(false);
       }
-      setLastScrollY(window.scrollY);  // Cập nhật vị trí cuộn cuối cùng
+      setLastScrollY(window.scrollY);
     };
 
-    window.addEventListener('mousemove', handleMouseMove); // Lắng nghe sự kiện di chuột
-    window.addEventListener('scroll', handleScroll);       // Lắng nghe sự kiện cuộn trang
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('scroll', handleScroll);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
@@ -31,22 +58,50 @@ export default function Header() {
     };
   }, [lastScrollY]);
 
-  const menu = (
-    <Menu>
-      <Menu.Item key="home" icon={<HomeOutlined />}>
-        <a href="/">Home</a>
-      </Menu.Item>
-      <Menu.Item key="metrics" icon={<BarChartOutlined />}>
-        <a href="/metrics">Metrics</a>
-      </Menu.Item>
-      <Menu.Item key="research" icon={<FileSearchOutlined />}>
-        <a href="/research">Research</a>
-      </Menu.Item>
-      <Menu.Item key="about" icon={<InfoCircleOutlined />}>
-        <a href="/about">About</a>
-      </Menu.Item>
-    </Menu>
-  );
+  const items = [
+    {
+      key: 'home',
+      icon: <HomeOutlined className="header-icon" />,
+      label: <a href="/">Home</a>,
+    },
+    {
+      key: 'metrics',
+      icon: <BarChartOutlined className="header-icon" />,
+      label: <a href="/metrics">Metrics</a>,
+    },
+    {
+      key: 'research',
+      icon: <FileSearchOutlined className="header-icon" />,
+      label: <a href="/research">Research</a>,
+    },
+    {
+      key: 'about',
+      icon: <InfoCircleOutlined className="header-icon" />,
+      label: <a href="/about">About</a>,
+    },
+  ];
+
+  const handleLoginClick = () => {
+    router.push('/auth'); // Điều hướng đến trang đăng nhập
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem('token'); // Xóa token khi đăng xuất
+    setUser(null);
+    message.success('Logout successful');
+    router.push('/');
+  };
+
+  const userMenu = [
+    {
+      key: 'profile',
+      label: <a href="/profile">Profile</a>,
+    },
+    {
+      key: 'logout',
+      label: <Button type="text" onClick={handleLogout}>Logout</Button>,
+    },
+  ];
 
   return (
     <header
@@ -56,69 +111,70 @@ export default function Header() {
         top: 0,
         left: 0,
         width: '100%',
-        transform: showHeader ? 'translateY(0)' : 'translateY(-100%)', // Ẩn/Hiện header
+        transform: showHeader ? 'translateY(0)' : 'translateY(-100%)',
         transition: 'transform 0.3s ease',
         zIndex: 1000,
       }}
     >
-      {/* Logo và Menu cho Desktop */}
-      <div className="flex items-center">
-        <a href="/" className="flex items-center mr-8">
-          <img src="../logo192.png" alt="Logo" className="h-12 w-auto" />
+      <div className="flex items-center space-x-2">
+        <a href="/" className="flex items-center header-link">
+          <img src="../logo192.png" alt="Logo" className="h-12 w-auto" style={{ maxWidth: '120px' }} />
         </a>
 
         <nav className="hidden md:flex space-x-8">
-          <a href="/" className="flex items-center gradient-hover">
-            <HomeOutlined className="mr-2" />
-            Home
-          </a>
-          <a href="/metrics" className="flex items-center gradient-hover">
-            <BarChartOutlined className="mr-2" />
-            Metrics
-          </a>
-          <a href="/research" className="flex items-center gradient-hover">
-            <FileSearchOutlined className="mr-2" />
-            Research
-          </a>
-          <a href="/about" className="flex items-center gradient-hover">
-            <InfoCircleOutlined className="mr-2" />
-            About
-          </a>
+          {items.map(item => (
+            <a key={item.key} href={item.label.props.href} className="flex items-center header-link">
+              <span className="header-icon" style={{ marginRight: '5px' }}>{item.icon}</span>
+              {item.label.props.children}
+            </a>
+          ))}
         </nav>
       </div>
 
-      {/* Dropdown Menu for Mobile */}
-      <div className="md:hidden">
-        <Dropdown overlay={menu} trigger={['click']}>
-          <Button
-            icon={<MenuOutlined />}
-            type="text"
-            className="text-black focus:outline-none"
-          />
-        </Dropdown>
+      <div className="flex items-center space-x-4">
+        <div className="md:hidden">
+          <Dropdown menu={{ items }} trigger={['click']}>
+            <Button
+              icon={<MenuOutlined className="header-icon" />}
+              type="text"
+              className="text-black focus:outline-none"
+            />
+          </Dropdown>
+        </div>
+
+        {user ? (
+          <Dropdown menu={{ items: userMenu }}>
+            <div className="flex items-center cursor-pointer">
+              <Avatar icon={<UserOutlined />} src={user.avatar || '/default-avatar.png'} />
+              <span className="ml-2">{user.username}</span>
+            </div>
+          </Dropdown>
+        ) : (
+          <Button type="primary" onClick={handleLoginClick}>
+            Login
+          </Button>
+        )}
       </div>
 
-      {/* Styles */}
       <style jsx>{`
-        .gradient-hover {
-          position: relative;
-          display: inline-block;
-          color: black;
-          background-size: 200% 100%;
-          background-image: linear-gradient(to right, cyan, cyan);
-          background-position: -100% 0;
-          -webkit-background-clip: text;
-          background-clip: text;
-          transition: background-position 0.5s ease, color 0.5s ease;
+        .header-icon {
+          color: #60a5fa;
+          transition: color 0.3s ease;
         }
 
-        .gradient-hover:hover {
-          background-position: 0 0;
-          color: transparent;
+        .header-link {
+          color: #60a5fa;
+          transition: color 0.3s ease;
+          display: flex;
+          align-items: center;
         }
 
-        .gradient-hover svg {
-          fill: currentColor;
+        .header-link:hover {
+          color: #1d4ed8;
+        }
+
+        .header-link:hover .header-icon {
+          color: #1d4ed8;
         }
       `}</style>
     </header>
