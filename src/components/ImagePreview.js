@@ -1,10 +1,15 @@
+'use client';
+
 import { Button } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 export default function ImagePreview({ fileList, handlePreview, handleRemove }) {
+  const { t } = useTranslation(); // Initialize translation hook
+
   return (
     <div className="mb-4 text-center">
-      <p className="text-blue-400 font-medium mb-2">Selected files:</p>
+      <p className="text-blue-400 font-medium mb-2">{t('selectedFiles')}</p> {/* Translated text */}
       <div className="flex justify-center flex-wrap gap-2 sm:gap-4">
         {fileList.map((file) => (
           <div

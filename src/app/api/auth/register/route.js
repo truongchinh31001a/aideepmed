@@ -1,42 +1,29 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import User from '@models/User'; // Model User của bạn
+import User from '@models/User'; 
 import connectMongo from 'utils/connectMongo';
 
 export async function POST(req) {
-  await connectMongo();
   try {
-    const { username, email, password } = await req.json();
+    await connectMongo();
 
-    // Kiểm tra xem tất cả trường có được gửi hay không
-    if (!username || !email || !password) {
-      return NextResponse.json({ message: 'All fields are required' }, { status: 400 });
+    const { uid, email, firstName, lastName } = await req.json();
+
+    if (!uid || !email || !firstName || !lastName) {
+      return NextResponse.json({ message: "All fields are required" }, { status: 400 });
     }
 
-    // Kiểm tra xem người dùng đã tồn tại chưa
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }); // Kiểm tra theo email
     if (existingUser) {
-      return NextResponse.json({ message: 'User already exists' }, { status: 400 });
+      return NextResponse.json({ message: "User already exists" }, { status: 400 });
     }
 
-    // Mã hóa mật khẩu
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ uid, email, firstName, lastName });
+    await newUser.save();
 
-    // Tạo người dùng mới
-    const user = new User({ username, email, password: hashedPassword });
-    await user.save();
+    return NextResponse.json({ message: "User registered successfully", user: newUser }, { status: 201 });
 
-    // Tạo token JWT
-    const token = jwt.sign(
-      { userId: user._id, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    return NextResponse.json({ message: 'Registration successful', token }, { status: 201 });
-  } catch (error) {
-    console.error('Error in registration:', error); // Log lỗi ra console để kiểm tra
-    return NextResponse.json({ message: 'Internal Server Error', error: error.message }, { status: 500 });
+  } catch (e) {
+    console.error('Error in registration:', e);
+    return NextResponse.json({ message: e.message || 'Internal Server Error' }, { status: 500 });
   }
 }

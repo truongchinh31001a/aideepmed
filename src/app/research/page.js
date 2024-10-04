@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Row, Col, Input, Checkbox, List, Card, Pagination } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-import diacritics from 'diacritics'; // Import thư viện diacritics
+import { useTranslation } from 'react-i18next'; // Import the i18n hook
+import diacritics from 'diacritics';
 
 export default function ResearchPage() {
+  const { t } = useTranslation(); // Initialize the translation function
   const [profileData, setProfileData] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState([]);
@@ -15,7 +17,6 @@ export default function ResearchPage() {
   const [pageSize] = useState(10);
   const router = useRouter();
 
-  // Fetch data from MongoDB and sort by creation date (newest to oldest)
   const fetchProfileData = async () => {
     try {
       const response = await fetch('/api/profiles');
@@ -31,70 +32,66 @@ export default function ResearchPage() {
     fetchProfileData();
   }, []);
 
-  // Scroll to top function when the user changes page
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: 'smooth', // Smooth scrolling
+      behavior: 'smooth',
     });
   };
 
-  // Handle pagination page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    scrollToTop(); // Scroll back to the top of the page when pagination changes
+    scrollToTop();
   };
 
-  // Handle search functionality
   const handleSearch = (value) => {
-    setSearchQuery(value); // Cập nhật searchQuery
-    setCurrentPage(1); // Reset về trang đầu khi tìm kiếm
+    setSearchQuery(value);
+    setCurrentPage(1);
   };
 
-  // Handle filter changes
   const handleFilterChange = (checkedValues) => {
-    setSelectedFilters(checkedValues); // Cập nhật selectedFilters
-    setCurrentPage(1); // Reset về trang đầu khi thay đổi bộ lọc
+    setSelectedFilters(checkedValues);
+    setCurrentPage(1);
   };
 
-  // Navigate to the profile detail page
   const handleProfileClick = (profileId) => {
     router.push(`/profiles/${profileId}`);
   };
 
-  // Function to normalize the search query and data
   const normalizeString = (str) => {
-    return diacritics.remove(str.toLowerCase().replace(/[_\.]/g, '').replace(/\s+/g, ' ')); // Loại bỏ dấu, ký tự đặc biệt và thay thế khoảng trắng liên tiếp
+    return diacritics.remove(str.toLowerCase().replace(/[_\.]/g, '').replace(/\s+/g, ' '));
   };
 
-  // Filter data based on the search query and filters
   const filteredData = profileData.filter(item => {
-    const normalizedQuery = normalizeString(searchQuery); // Normalize search query
+    const validImages = item.images.filter(img => img.status);
+    if (validImages.length === 0) {
+      return false;
+    }
+
+    const normalizedQuery = normalizeString(searchQuery);
 
     const matchesSearchQuery =
-      normalizeString(item.name).includes(normalizedQuery) || // Tìm kiếm trong tên hồ sơ
-      item.images.some(img =>
-        normalizeString(img.originalname).includes(normalizedQuery) || // Tìm kiếm trong tên hình ảnh
+      normalizeString(item.name).includes(normalizedQuery) ||
+      validImages.some(img =>
+        normalizeString(img.originalname).includes(normalizedQuery) ||
         img.thirdPartyInfo.predictions.some(prediction =>
-          normalizeString(prediction[1]).includes(normalizedQuery) // Tìm kiếm trong predictions
+          normalizeString(prediction[1]).includes(normalizedQuery)
         )
       );
 
-    // Kiểm tra xem item có khớp với bộ lọc không
     const matchesFilter =
-      selectedFilters.length === 0 || // Nếu không có bộ lọc nào được chọn
-      selectedFilters.some(filter => // Lặp qua từng bộ lọc
-        item.images.some(img => // Lặp qua từng image
+      selectedFilters.length === 0 ||
+      selectedFilters.some(filter =>
+        validImages.some(img =>
           img.thirdPartyInfo.predictions.some(prediction =>
-            normalizeString(prediction[0]).includes(normalizeString(filter)) // So sánh với giá trị trong predictions
+            normalizeString(prediction[0]).includes(normalizeString(filter))
           )
         )
       );
 
-    return matchesSearchQuery && matchesFilter; // Trả về true nếu item phù hợp với cả hai tiêu chí
+    return matchesSearchQuery && matchesFilter;
   });
 
-  // Calculate the data to display on the current page
   const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
@@ -102,35 +99,35 @@ export default function ResearchPage() {
       <Row gutter={[16, 16]} className="research-content">
         <Col xs={24} md={6} className="filter-section">
           <div className="filter-wrapper">
-            <Card title="Search & Filters" className="mb-4">
+            <Card title={t('research.filters.title')} className="mb-4">
               <Input.Search
-                placeholder="Enter search keywords..."
+                placeholder={t('research.searchPlaceholder')} // Translated placeholder
                 enterButton={<SearchOutlined />}
                 size="large"
-                onSearch={handleSearch} // Gọi hàm handleSearch
+                onSearch={handleSearch}
                 className="mb-4"
-                suppressHydrationWarning // Thêm thuộc tính này
               />
-
               <Checkbox.Group
-                options={['Ear', 'Nose', 'Throat']}
+                options={[
+                  t('research.filters.ear'),
+                  t('research.filters.nose'),
+                  t('research.filters.throat'),
+                ]}
                 onChange={handleFilterChange}
                 className="mb-4"
-                direction="vertical"
-                suppressHydrationWarning // Thêm thuộc tính này
               />
             </Card>
           </div>
         </Col>
 
         <Col xs={24} md={18}>
-          <Card title="Search Results">
+          <Card>
             <List
               itemLayout="vertical"
               size="large"
               dataSource={paginatedData}
               renderItem={item => {
-                const displayedImages = expanded ? item.images : item.images.slice(0, 5);
+                const displayedImages = expanded ? item.images.filter(img => img.status) : item.images.filter(img => img.status).slice(0, 5);
 
                 return (
                   <List.Item
@@ -146,28 +143,21 @@ export default function ResearchPage() {
                     }}
                   >
                     <List.Item.Meta
-                      title={(
-                        <div className="item-name"> {/* Thay đổi từ <h4> thành <div> */}
-                          {item.name}
-                        </div>
-                      )}
+                      title={item.name}
                       description={(
                         <div>
                           <p style={{ color: 'gray' }}>
-                            Created on: {new Date(item.createdAt).toLocaleDateString('en-US')}
+                            {t('research.createdOn')}: {new Date(item.createdAt).toLocaleDateString()}
                           </p>
                           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                             {displayedImages.map((image, index) => (
                               <div key={image.filename} style={{ position: 'relative' }}>
-                                {image.path && (
-                                  <img
-                                    src={image.path}
-                                    alt={image.originalname}
-                                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '5px' }}
-                                  />
-                                )}
-
-                                {!expanded && index === 4 && item.images.length > 5 && (
+                                <img
+                                  src={image.path}
+                                  alt={image.originalname}
+                                  style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '5px' }}
+                                />
+                                {!expanded && index === 4 && displayedImages.length > 5 && (
                                   <div
                                     style={{
                                       position: 'absolute',
@@ -184,7 +174,7 @@ export default function ResearchPage() {
                                       borderRadius: '5px',
                                     }}
                                   >
-                                    +{item.images.length - 4}
+                                    +{displayedImages.length - 4}
                                   </div>
                                 )}
                               </div>
@@ -206,7 +196,6 @@ export default function ResearchPage() {
                 onChange={handlePageChange}
               />
             </div>
-
           </Card>
         </Col>
       </Row>
@@ -214,34 +203,19 @@ export default function ResearchPage() {
       <style jsx>{`
         .research-page {
           min-height: 100vh;
-          display: flex;
-          flex-direction: column;
           padding: 0 16px;
-          box-sizing: border-box;
+          margin-top: 70px;
         }
 
         .research-content {
           max-width: 1200px;
-          width: 100%;
           margin: 0 auto;
         }
 
         .filter-wrapper {
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          height: 100vh;
           position: sticky;
           top: 0;
-        }
-
-        .item-name {
-          text-decoration: none;
-          transition: text-decoration 0.3s ease;
-        }
-
-        .item-name:hover {
-          text-decoration: underline;
+          height: 100vh;
         }
       `}</style>
     </div>

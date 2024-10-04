@@ -1,29 +1,58 @@
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/firebase.config';
+import User from '@models/User';
+import connectMongo from 'utils/connectMongo';
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import User from '@models/User'; // Model người dùng của bạn
 
 export async function POST(req) {
   try {
-    const { username, password } = await req.json();
+    const { email, password } = await req.json();
 
-    // Tìm kiếm người dùng trong database
-    const user = await User.findOne({ username });
-    if (!user) {
-      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    // Kiểm tra email và password không rỗng
+    if (!email || !password) {
+      return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
     }
 
-    // Kiểm tra mật khẩu
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
+    // Đăng nhập với Firebase Authentication
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Kết nối tới MongoDB
+    await connectMongo();
+
+    // Kiểm tra xem người dùng đã tồn tại trong MongoDB chưa (chỉ lưu thông tin, không lưu mật khẩu)
+    let existingUser = await User.findOne({ email: user.email });
+
+    if (!existingUser) {
+      // Nếu người dùng chưa tồn tại trong MongoDB, tạo mới với thông tin từ Firebase
+      existingUser = new User({
+        email: user.email,
+        firstName: user.displayName ? user.displayName.split(' ')[0] : 'Unknown',
+        lastName: user.displayName ? user.displayName.split(' ')[1] : '',
+        uid: user.uid, // UID từ Firebase
+        provider: 'email-password', // Hoặc 'google' nếu là đăng nhập qua Google
+      });
+      await existingUser.save();
     }
 
-    // Tạo JWT
-    const token = jwt.sign({ userId: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Thành công
+    return NextResponse.json({
+      message: "Login successful",
+      user: { uid: user.uid, email: user.email }
+    }, { status: 200 });
 
-    return NextResponse.json({ message: 'Login successful', token }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ message: 'Internal Server Error', error }, { status: 500 });
+    let errorMessage = "Login failed";
+
+    // Xử lý các lỗi cụ thể từ Firebase
+    if (error.code === 'auth/user-not-found') {
+      errorMessage = "User not found";
+    } else if (error.code === 'auth/wrong-password') {
+      errorMessage = "Incorrect password";
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = "Invalid email address";
+    }
+
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }

@@ -99,6 +99,7 @@ export default function MetricsContent() {
       <style jsx>{`
         .metrics-container {
           flex-grow: 1;
+          margin-top: 70px; /* Điều chỉnh margin-top để tránh bị header che */
         }
       `}</style>
     </div>

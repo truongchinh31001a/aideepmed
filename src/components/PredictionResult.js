@@ -1,57 +1,143 @@
-import { Card, Button, Modal, Form, Input, message } from 'antd';
+'use client';
+
+import { Card, Button, Modal, Form, Input } from 'antd';
 import { useState } from 'react';
 import { WarningOutlined } from '@ant-design/icons';
-import { submitReport } from 'services/submitReport';
 import { useRouter } from 'next/navigation';
+import { auth } from '@/firebase.config';
+import { useTranslation } from 'react-i18next';
+import { Store } from 'react-notifications-component'; // Import Store để dùng react-notifications-component
 
 export default function PredictionResult({ result }) {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [comment, setComment] = useState('');
-  const router = useRouter();  // Sử dụng router để chuyển hướng
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   if (!result || !result.profile || !result.profile.images) {
-    return <p>No result available.</p>;
+    return <p>{t('result.noResult')}</p>;
   }
 
   const { images } = result.profile;
 
-  // Mở modal khi nhấp vào ảnh
   const handleCardClick = (image) => {
     setSelectedImage(image);
     setIsModalOpen(true);
-    setShowReportForm(false); // Reset form khi mở modal
+    setShowReportForm(false);
   };
 
-  // Đóng modal
   const handleModalClose = () => {
     setIsModalOpen(false);
-    setComment(''); // Xóa comment khi đóng modal
+    setComment('');
   };
 
-  // Mở form báo cáo
   const handleReportClick = () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      message.warning('You need to log in to submit a report');
-      router.push('/auth');  // Chuyển hướng đến trang đăng nhập
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Store.addNotification({
+        title: t('result.loginWarning'),
+        message: 'You need to log in to submit a report.',
+        type: 'warning',
+        insert: 'top',
+        container: 'top-right',
+        dismiss: {
+          duration: 3000,
+          onScreen: true,
+        },
+      });
+      localStorage.setItem('redirectAfterLogin', window.location.pathname);
+      router.push('/auth');
     } else {
       setShowReportForm(true);
     }
   };
 
-  // Gửi báo cáo
   const handleReportSubmit = async () => {
-    const token = localStorage.getItem('token');
-    const response = await submitReport(result.profile._id, selectedImage._id, comment, token);
+    if (!comment.trim()) {
+      Store.addNotification({
+        title: t('result.emptyCommentWarning'),
+        message: 'Please fill in the comment field before submitting the report.',
+        type: 'warning',
+        insert: 'top',
+        container: 'top-right',
+        dismiss: {
+          duration: 3000,
+          onScreen: true,
+        },
+      });
+      return;
+    }
 
-    if (response.success) {
-      message.success(response.message);
-      setShowReportForm(false); // Ẩn form sau khi gửi thành công
-      setComment('');  // Xóa comment sau khi gửi
-    } else {
-      message.error(response.message);
+    try {
+      setLoading(true);
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error(t('result.loginWarning'));
+      }
+
+      const token = await currentUser.getIdToken();
+
+      const response = await fetch('/api/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profileId: result.profile._id,
+          imageId: selectedImage._id,
+          comment: comment.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Store.addNotification({
+          title: t('result.reportSuccess'),
+          message: 'Your report has been successfully submitted!',
+          type: 'success',
+          insert: 'top',
+          container: 'top-right',
+          dismiss: {
+            duration: 3000,
+            onScreen: true,
+          },
+        });
+        setShowReportForm(false);
+        setComment('');
+        setIsModalOpen(false); // Đóng modal sau khi báo cáo thành công
+      } else {
+        Store.addNotification({
+          title: 'Error',
+          message: data.message || t('result.reportFailed'),
+          type: 'danger',
+          insert: 'top',
+          container: 'top-right',
+          dismiss: {
+            duration: 3000,
+            onScreen: true,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      Store.addNotification({
+        title: 'Error',
+        message: t('result.reportError'),
+        type: 'danger',
+        insert: 'top',
+        container: 'top-right',
+        dismiss: {
+          duration: 3000,
+          onScreen: true,
+        },
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,13 +145,13 @@ export default function PredictionResult({ result }) {
     if (image.thirdPartyInfo && image.thirdPartyInfo.predictions && image.thirdPartyInfo.predictions[0] && image.thirdPartyInfo.predictions[0][1]) {
       return image.thirdPartyInfo.predictions[0][1];
     }
-    return 'No diagnosis available';
+    return t('result.noDiagnosis');
   };
 
   return (
     <>
-      <h1 className="text-4xl font-bold text-red-500 mb-4">Result</h1>
-      <p className="text-lg text-blue-400 mb-4">Your diagnosis is as follows:</p>
+      <h1 className="text-4xl font-bold text-red-500 mb-4">{t('result.title')}</h1>
+      <p className="text-lg text-blue-400 mb-4">{t('result.diagnosisIntro')}</p>
 
       <div className={`grid ${images.length === 1 ? 'single-card' : ''}`}>
         {images.map((image, index) => (
@@ -84,7 +170,7 @@ export default function PredictionResult({ result }) {
             }}
           >
             <div className="text-center text-lg font-semibold mb-8">
-              {`Diagnosis: ${getDiagnosis(image)}`}
+              {`${t('result.diagnosis')}: ${getDiagnosis(image)}`}
             </div>
           </Card>
         ))}
@@ -92,7 +178,7 @@ export default function PredictionResult({ result }) {
 
       <div className="mt-8 text-center">
         <Button type="primary" onClick={() => window.location.href = '/'}>
-          Back
+          {t('result.backButton')}
         </Button>
       </div>
 
@@ -112,10 +198,9 @@ export default function PredictionResult({ result }) {
               />
             </div>
             <div className="modal-info">
-              <h3>status</h3>
-              <h3>{selectedImage.thirdPartyInfo?.predictions?.[0]?.[0] || 'Unknown'}</h3>
+              <h3>{selectedImage.thirdPartyInfo?.predictions?.[0]?.[0] || t('result.unknownStatus')}</h3>
               <p>
-                <strong>Diagnosis:</strong> {getDiagnosis(selectedImage)}
+                <strong>{t('result.diagnosis')}:</strong> {getDiagnosis(selectedImage)}
               </p>
 
               {!showReportForm ? (
@@ -124,7 +209,7 @@ export default function PredictionResult({ result }) {
                   onClick={handleReportClick}
                   className="report-button"
                 >
-                  Report
+                  {t('result.reportButton')}
                 </Button>
               ) : (
                 <Form layout="vertical" style={{ marginTop: '20px' }}>
@@ -132,16 +217,17 @@ export default function PredictionResult({ result }) {
                     <Input.TextArea
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder="Enter your report comment here"
+                      placeholder={t('result.commentPlaceholder')}
                       rows={4}
                     />
                   </Form.Item>
                   <Button
                     type="primary"
                     onClick={handleReportSubmit}
+                    loading={loading}
                     style={{ marginTop: '10px' }}
                   >
-                    Submit Report
+                    {t('result.submitReport')}
                   </Button>
                 </Form>
               )}

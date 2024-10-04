@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 
 const connectMongo = async () => {
   if (mongoose.connection.readyState >= 1) {
-    console.log('MongoDB is already connected');
     return;
   }
 
@@ -13,7 +12,6 @@ const connectMongo = async () => {
       dbName: 'deepmed',
       serverSelectionTimeoutMS: 30000,
     });
-    console.log('MongoDB connected successfully');
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
     throw new Error('MongoDB connection failed');

@@ -1,6 +1,23 @@
-import { FacebookOutlined, TwitterOutlined, InstagramOutlined, GithubOutlined } from '@ant-design/icons';
+'use client';
+import { useState, useEffect } from 'react';
+import { FacebookOutlined, TwitterOutlined, InstagramOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next'; // Import the useTranslation hook for translations
 
 export default function Footer() {
+  const { t, i18n } = useTranslation(); // Initialize translation hook
+  const [year, setYear] = useState('');
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true); // Xác nhận đây là client-side
+    setYear(new Date().getFullYear()); // Lấy năm hiện tại
+  }, []);
+
+  if (!isClient) {
+    // Đợi client-side render xong
+    return null;
+  }
+
   return (
     <footer className="bg-gray-800 text-white py-6">
       <div className="container mx-auto px-4 text-center">
@@ -15,22 +32,19 @@ export default function Footer() {
           <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">
             <InstagramOutlined className="text-white text-2xl hover:text-pink-500" />
           </a>
-          <a href="https://github.com" target="_blank" rel="noopener noreferrer">
-            <GithubOutlined className="text-white text-2xl hover:text-gray-500" />
-          </a>
         </div>
 
         {/* Quick Links */}
         <div className="mb-4">
-          <a href="/about" className="text-white hover:text-gray-400 mx-2">About Us</a>
-          <a href="/contact" className="text-white hover:text-gray-400 mx-2">Contact</a>
-          <a href="/privacy" className="text-white hover:text-gray-400 mx-2">Privacy Policy</a>
-          <a href="/terms" className="text-white hover:text-gray-400 mx-2">Terms of Service</a>
+          <a href="/about" className="text-white hover:text-gray-400 mx-2">{t('aboutUs')}</a>
+          <a href="/contact" className="text-white hover:text-gray-400 mx-2">{t('contact')}</a>
+          <a href="/privacy" className="text-white hover:text-gray-400 mx-2">{t('privacyPolicy')}</a>
+          <a href="/terms" className="text-white hover:text-gray-400 mx-2">{t('termsOfService')}</a>
         </div>
 
         {/* Copyright */}
         <p className="text-sm text-gray-400">
-          © {new Date().getFullYear()} Your Company. All rights reserved.
+          © {year} Provide deep medicine unit
         </p>
       </div>
     </footer>

@@ -1,8 +1,8 @@
 import localFont from "next/font/local";
 import "./globals.css";
-import ClientRootLayout from './ClientRootLayout'; // Import ClientRootLayout
+import ClientRootLayout from './ClientRootLayout'; 
+import { NextIntlProvider } from "next-intl";
 
-// Định nghĩa font cục bộ
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
