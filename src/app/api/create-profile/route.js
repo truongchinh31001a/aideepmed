@@ -81,7 +81,5 @@ export async function POST(req) {
 }
 
 export const config = {
-  api: {
-    bodyParser: false, // Vô hiệu hóa bodyParser để sử dụng formData
-  },
+  runtime: 'edge',
 };
