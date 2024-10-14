@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import { Row, Col, Input, Checkbox, List, Card, Pagination } from 'antd';
@@ -64,7 +64,7 @@ export default function ResearchPage() {
 
   const filteredData = profileData.filter(item => {
     const validImages = item.images.filter(img => img.status);
-    if (validImages.length === 0) {
+    if (validImages.length === 0 || !item.isUser) { // Thêm điều kiện kiểm tra isUser
       return false;
     }
 
@@ -143,7 +143,6 @@ export default function ResearchPage() {
                     }}
                   >
                     <List.Item.Meta
-                      title={item.name}
                       description={(
                         <div>
                           <p style={{ color: 'gray' }}>

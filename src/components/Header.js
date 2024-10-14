@@ -1,17 +1,19 @@
 'use client';
 
 import { Button, Avatar, Dropdown, message } from 'antd';
-import { HomeOutlined, BarChartOutlined, InfoCircleOutlined, FileSearchOutlined, MenuOutlined, UserOutlined } from '@ant-design/icons';
+import { HomeOutlined, BarChartOutlined, InfoCircleOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { auth, signOut } from '@/firebase.config';
 import Link from 'next/link'; // Sử dụng Link của Next.js
 import LanguageSwitcher from './LanguageSwitcher';
-import { useTranslation } from 'react-i18next'; // Thêm useTranslation
+import { useTranslation } from 'react-i18next';
 
 export default function Header() {
-  const { t } = useTranslation(); // Sử dụng t để dịch các chuỗi
-  const [user, setUser] = useState(null);
+  const { t } = useTranslation(); 
+  const [firebaseUser, setFirebaseUser] = useState(null); 
+  const [mongoUser, setMongoUser] = useState(null); 
+  const [isAdmin, setIsAdmin] = useState(false); 
   const router = useRouter();
   const [showHeader, setShowHeader] = useState(true);
 
@@ -24,9 +26,53 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-      setUser(firebaseUser);
+    const fetchUserData = async (user) => {
+      try {
+        const response = await fetch('/api/getUserDetails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: user.uid }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setMongoUser(data); 
+
+          // Gọi API để kiểm tra vai trò admin
+          const roleResponse = await fetch('/api/checkUserRole', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ uid: user.uid }),
+          });
+
+          const roleData = await roleResponse.json();
+          if (roleResponse.ok) {
+            setIsAdmin(roleData.isAdmin); 
+          }
+        } else {
+          console.error('Error fetching user details:', data.message);
+        }
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+      }
+    };
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setFirebaseUser(user);
+        fetchUserData(user);
+      } else {
+        setFirebaseUser(null);
+        setMongoUser(null);
+        setIsAdmin(false);
+      }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -43,15 +89,15 @@ export default function Header() {
   const items = [
     { key: 'home', icon: <HomeOutlined />, label: <Link href="/">{t('home')}</Link> },
     { key: 'metrics', icon: <BarChartOutlined />, label: <Link href="/metrics">{t('metrics')}</Link> },
-    { key: 'research', icon: <FileSearchOutlined />, label: <Link href="/research">{t('search')}</Link> },
     { key: 'about', icon: <InfoCircleOutlined />, label: <Link href="/about">{t('about')}</Link> },
   ];
 
   const userMenu = [
     { key: 'profile', label: <Link href="/profile">{t('profileu')}</Link> },
-    { key: 'manage', label: <Link href="/dashboard">{t('manage')}</Link>},
+    { key: 'research', label: <Link href="/research">{t('search')}</Link> },
+    isAdmin && { key: 'manage', label: <Link href="/dashboard">{t('manage')}</Link> }, 
     { key: 'logout', label: <Button type="text" onClick={handleLogout}>{t('logout')}</Button> },
-  ];
+  ].filter(Boolean); 
 
   return (
     <header
@@ -68,7 +114,7 @@ export default function Header() {
     >
       <div className="flex items-center space-x-2">
         <Link href="/" className="flex items-center header-link">
-          <img src="../logo192.png" alt={t('logo')} className="h-12 w-auto" style={{ maxWidth: '120px', marginRight: '20px' }} />
+          <img src="../LOGO.png" alt={t('logo')} className="h-12 w-auto" style={{ maxWidth: '120px', marginRight: '20px', justifyContent: "center", alignItems: "center" }} />
         </Link>
         <nav className="hidden md:flex space-x-8">
           {items.map(item => (
@@ -81,11 +127,16 @@ export default function Header() {
       </div>
       <div className="flex items-center space-x-4">
         <LanguageSwitcher />
-        {user ? (
+        {firebaseUser ? (
           <Dropdown menu={{ items: userMenu }}>
             <div className="flex items-center cursor-pointer">
-              <Avatar icon={<UserOutlined />} src={user.photoURL || '/default-avatar.png'} />
-              <span className="ml-2">{user.displayName || user.email}</span>
+              <Avatar
+                icon={<UserOutlined />}
+                src={mongoUser?.image || firebaseUser.photoURL || '/default-avatar.png'}
+              />
+              <span className="ml-2">
+                {mongoUser ? `${mongoUser.firstName} ${mongoUser.lastName}` : firebaseUser.displayName || firebaseUser.email}
+              </span>
             </div>
           </Dropdown>
         ) : (
@@ -110,6 +161,19 @@ export default function Header() {
         }
         .header-link:hover .header-icon {
           color: #1d4ed8;
+        }
+
+        .header-link {
+          transition: color 0.3s ease, background-color 0.3s ease;
+        }
+
+        .header-link:hover {
+          color: #1d4ed8;
+          background-color: rgba(29, 78, 216, 0.1); /* Hiệu ứng đổi nền nhẹ khi hover */
+        }
+
+        .header-icon:hover {
+          color: #1d4ed8; /* Đổi màu biểu tượng khi hover */
         }
       `}</style>
     </header>

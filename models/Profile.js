@@ -15,6 +15,7 @@ const profileSchema = new mongoose.Schema({
       reports: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Report' }], // Tham chiếu đến Report
     },
   ],
+  isUser: { type: Boolean, default: false }, // Thêm trường isUser
 });
 
 const Profile = mongoose.models.Profile || mongoose.model('Profile', profileSchema);

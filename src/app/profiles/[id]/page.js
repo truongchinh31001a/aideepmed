@@ -63,8 +63,7 @@ export default function ProfileDetail() {
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
       <div className="flex-grow overflow-y-auto pt-20 px-4">
-        <h2 className="text-3xl font-bold text-center mb-6 mt-5">{profile.name}</h2>
-
+        {/* <h2 className="text-3xl font-bold text-center mb-6 mt-5">{profile.name}</h2> */}
         {/* Table Layout */}
         <div className="table-layout">
           {/* First Row - Ear (only if there are ear images) */}

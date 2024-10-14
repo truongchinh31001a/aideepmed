@@ -1,79 +1,99 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Spin, Button, Modal, Avatar } from 'antd'; // Import thêm Avatar từ Ant Design
-import { IdcardOutlined } from '@ant-design/icons'; // Import biểu tượng Idcard
-import { Store } from 'react-notifications-component'; // Import Store để hiển thị thông báo
-import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
+import { Spin, Button, Modal, Avatar } from 'antd';
+import { IdcardOutlined } from '@ant-design/icons';
+import { Store } from 'react-notifications-component';
+import { auth } from '@/firebase.config'; // Import Firebase auth để lấy uid người dùng hiện tại
 
 export default function UserTable() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false); // Trạng thái của modal xác nhận
-  const [confirmMessage, setConfirmMessage] = useState(''); // Nội dung thông báo xác nhận
+  const [confirmMessage, setConfirmMessage] = useState(''); // Thêm state để lưu thông báo xác nhận
+  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false); // Thêm state để hiển thị modal xác nhận
+  const [currentUserUid, setCurrentUserUid] = useState(null); // Thêm state để lưu uid của người dùng hiện tại
 
-  // Lấy thông tin người dùng hiện tại
-  const auth = getAuth();
-  const currentUser = auth.currentUser;
+  // Lấy thông tin người dùng hiện tại (uid)
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUserUid(user.uid); // Lưu uid của người dùng hiện tại
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
+  // Fetch users từ API
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const response = await fetch('/api/firebase/getUsers');
+        const response = await fetch('/api/users'); // Gọi API để lấy dữ liệu từ cả Firebase và MongoDB
         const data = await response.json();
-
-        // Lọc người dùng hiện tại khỏi danh sách
-        const filteredUsers = data.filter(user => user.uid !== currentUser.uid);
-
-        setUsers(filteredUsers || []);
+        setUsers(data);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching users:', error);
         setLoading(false);
       }
     }
+    fetchUsers();
+  }, []);
 
-    if (currentUser) {
-      fetchUsers(); // Chỉ fetch users khi có currentUser
-    }
-  }, [currentUser]);
-
+  // Hàm xóa người dùng
   async function handleDelete(user) {
     try {
-      const response = await fetch('/api/firebase/deleteUser', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid: user.uid }), // Gửi uid của người dùng cần xóa
-      });
+      const deletePromises = [];
 
-      if (response.ok) {
-        setConfirmMessage(`User ${user.firstName} ${user.lastName} deleted successfully.`); // Nội dung thông báo xác nhận
-        setIsConfirmModalVisible(true); // Hiển thị modal xác nhận
-        setUsers(users.filter((u) => u.uid !== user.uid)); // Xóa người dùng khỏi danh sách sau khi xóa thành công
-        setIsModalVisible(false); // Ẩn modal chi tiết người dùng
-      } else {
-        const data = await response.json();
-        Store.addNotification({
-          title: 'Error!',
-          message: `Failed to delete user: ${data.message}`,
-          type: 'danger',
-          insert: 'top',
-          container: 'top-right',
-          dismiss: {
-            duration: 3000,
-            onScreen: true,
+      if (user.id) {
+        console.log('Deleting from Firebase with id:', user.id);
+        const firebaseDeletePromise = fetch('/api/firebase/deleteUser', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ uid: user.id }),
         });
+        deletePromises.push(firebaseDeletePromise);
       }
+
+      if (user.id) {
+        console.log('Deleting from MongoDB with id:', user.id);
+        const mongoDeletePromise = fetch('/api/mongodb/deleteUser', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: user.id }),
+        });
+        deletePromises.push(mongoDeletePromise);
+      }
+
+      const responses = await Promise.all(deletePromises);
+
+      const firebaseResponse = responses[0];
+      if (firebaseResponse && !firebaseResponse.ok) {
+        const firebaseData = await firebaseResponse.json();
+        throw new Error(`Firebase: ${firebaseData.message}`);
+      }
+
+      const mongoResponse = responses[1];
+      if (mongoResponse && !mongoResponse.ok) {
+        const mongoData = await mongoResponse.json();
+        throw new Error(`MongoDB: ${mongoData.message}`);
+      }
+
+      setConfirmMessage(`User ${user.displayName} deleted successfully.`);
+      setIsConfirmModalVisible(true);
+
+      setUsers(users.filter((u) => u.id !== user.id));
+      setIsModalVisible(false);
     } catch (error) {
       console.error('Error deleting user:', error);
       Store.addNotification({
         title: 'Error!',
-        message: 'Error deleting user.',
+        message: `Failed to delete user: ${error.message}`,
         type: 'danger',
         insert: 'top',
         container: 'top-right',
@@ -85,9 +105,9 @@ export default function UserTable() {
     }
   }
 
-  // Hàm chỉnh sửa mật khẩu người dùng
+  // Hàm edit người dùng
   async function handleEdit(uid) {
-    const newPassword = prompt('Enter new password:'); // Yêu cầu nhập mật khẩu mới
+    const newPassword = prompt('Enter new password:');
     if (newPassword) {
       try {
         const response = await fetch('/api/firebase/updatePassword', {
@@ -100,8 +120,8 @@ export default function UserTable() {
 
         if (response.ok) {
           setConfirmMessage('Password updated successfully.');
-          setIsConfirmModalVisible(true); // Hiển thị modal xác nhận
-          setIsModalVisible(false); // Ẩn modal chi tiết người dùng
+          setIsConfirmModalVisible(true);
+          setIsModalVisible(false);
         } else {
           const data = await response.json();
           Store.addNotification({
@@ -133,69 +153,15 @@ export default function UserTable() {
     }
   }
 
-  // Hàm phân quyền admin
-  async function handleToggleAdmin(user) {
-    try {
-      const response = await fetch('/api/updateUserRole', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid: user.uid, isAdmin: !user.isAdmin }), // Toggle admin quyền
-      });
-
-      if (response.ok) {
-        setConfirmMessage(`User ${user.firstName} ${user.lastName} is now ${!user.isAdmin ? 'an Admin' : 'a regular user'}.`);
-        setIsConfirmModalVisible(true); // Hiển thị modal xác nhận
-        setIsModalVisible(false); // Ẩn modal chi tiết người dùng
-
-        // Cập nhật danh sách người dùng
-        setUsers(users.map(u => 
-          u.uid === user.uid ? { ...u, isAdmin: !user.isAdmin } : u
-        ));
-      } else {
-        Store.addNotification({
-          title: 'Error!',
-          message: `Failed to update admin status.`,
-          type: 'danger',
-          insert: 'top',
-          container: 'top-right',
-          dismiss: {
-            duration: 3000,
-            onScreen: true,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Error updating admin status:', error);
-      Store.addNotification({
-        title: 'Error!',
-        message: 'Error updating admin status.',
-        type: 'danger',
-        insert: 'top',
-        container: 'top-right',
-        dismiss: {
-          duration: 3000,
-          onScreen: true,
-        },
-      });
-    }
-  }
-
   // Hiển thị modal với thông tin người dùng
   const showModal = (user) => {
     setSelectedUser(user);
     setIsModalVisible(true);
   };
 
-  // Ẩn modal
+  // Hủy hiển thị modal
   const handleCancel = () => {
     setIsModalVisible(false);
-  };
-
-  // Ẩn modal xác nhận
-  const handleConfirmModalClose = () => {
-    setIsConfirmModalVisible(false);
   };
 
   return (
@@ -220,20 +186,22 @@ export default function UserTable() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.uid} className="hover:bg-gray-100">
-                    <td className="py-2 px-4 border-b">
-                      <Avatar src={user.photoURL} alt={user.displayName} /> {/* Ảnh đại diện */}
-                    </td>
-                    <td className="py-2 px-4 border-b">{user.displayName || 'N/A'}</td>
-                    <td className="py-2 px-4 border-b">{user.email}</td>
-                    <td className="py-2 px-4 border-b">{new Date(user.createdAt).toLocaleDateString()}</td> {/* Ngày tạo */}
-                    <td className="py-2 px-4 border-b">{new Date(user.lastSignInTime).toLocaleDateString()}</td> {/* Ngày đăng nhập */}
-                    <td className="py-2 px-4 border-b">
-                      <Button type="link" icon={<IdcardOutlined />} onClick={() => showModal(user)} />
-                    </td>
-                  </tr>
-                ))}
+                {users
+                  .filter((user) => user.id !== currentUserUid) // Lọc bỏ người dùng hiện tại
+                  .map((user) => (
+                    <tr key={user.id || user._id} className="hover:bg-gray-100">
+                      <td className="py-2 px-4 border-b">
+                        <Avatar src={user.photoURL} alt={user.displayName} />
+                      </td>
+                      <td className="py-2 px-4 border-b">{user.displayName || 'N/A'}</td>
+                      <td className="py-2 px-4 border-b">{user.email}</td>
+                      <td className="py-2 px-4 border-b">{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2 px-4 border-b">{new Date(user.lastSignInTime).toLocaleDateString()}</td>
+                      <td className="py-2 px-4 border-b">
+                        <Button type="link" icon={<IdcardOutlined />} onClick={() => showModal(user)} />
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           ) : (
@@ -242,28 +210,24 @@ export default function UserTable() {
         </>
       )}
 
-      {/* Modal hiển thị thông tin chi tiết người dùng */}
-      <Modal
-        title="User Details"
-        visible={isModalVisible}
-        onCancel={handleCancel}
-        footer={null} // Không có footer cho modal
-      >
+      <Modal title="User Details" visible={isModalVisible} onCancel={handleCancel} footer={null}>
         {selectedUser && (
           <div style={{ textAlign: 'center' }}>
-            {/* Ảnh đại diện trong modal */}
             <Avatar
               src={selectedUser.photoURL}
               size={100}
               alt={selectedUser.displayName}
               style={{ marginBottom: '20px' }}
             />
-            <p><strong>Name:</strong> {selectedUser.displayName}</p>
-            <p><strong>Email:</strong> {selectedUser.email}</p>
-            <p><strong>Created At:</strong> {new Date(selectedUser.createdAt).toLocaleDateString()}</p>
-            <p><strong>Last Signed In:</strong> {new Date(selectedUser.lastSignInTime).toLocaleDateString()}</p>
-
-            {/* Nút Edit và Delete */}
+            <p>
+              <strong>Name:</strong> {selectedUser.displayName}
+            </p>
+            <p>
+              <strong>Email:</strong> {selectedUser.email}
+            </p>
+            <p>
+              <strong>Created At:</strong> {new Date(selectedUser.createdAt).toLocaleDateString()}
+            </p>
             <Button
               type="text"
               style={{ backgroundColor: 'white', color: 'blue', marginRight: '10px' }}
@@ -278,15 +242,6 @@ export default function UserTable() {
             >
               Delete
             </Button>
-
-            {/* Nút phân quyền admin */}
-            <Button
-              type="text"
-              style={{ backgroundColor: 'white', color: selectedUser.isAdmin ? 'green' : 'orange', marginTop: '10px' }}
-              onClick={() => handleToggleAdmin(selectedUser)}
-            >
-              {selectedUser.isAdmin ? 'Revoke Admin' : 'Grant Admin'}
-            </Button>
           </div>
         )}
       </Modal>
@@ -295,8 +250,8 @@ export default function UserTable() {
       <Modal
         title="Confirmation"
         visible={isConfirmModalVisible}
-        onOk={handleConfirmModalClose}
-        onCancel={handleConfirmModalClose}
+        onOk={() => setIsConfirmModalVisible(false)}
+        onCancel={() => setIsConfirmModalVisible(false)}
       >
         <p>{confirmMessage}</p>
       </Modal>

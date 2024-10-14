@@ -6,9 +6,7 @@ import User from 'models/User'; // Import mô hình User từ thư mục models
 export async function POST(request) {
   try {
     const body = await request.json(); // Lấy toàn bộ body của request
-    console.log("Request body:", body); // Ghi log body để kiểm tra nội dung
     const { uid } = body; // Lấy `uid` từ body
-    console.log("Received UID:", uid); // Ghi log để kiểm tra UID
 
     if (!uid) {
       return NextResponse.json({ message: 'Missing uid' }, { status: 400 });
