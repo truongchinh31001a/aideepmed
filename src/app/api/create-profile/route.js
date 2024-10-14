@@ -80,6 +80,4 @@ export async function POST(req) {
   });
 }
 
-export const config = {
-  runtime: 'edge',
-};
+export const runtime = "edge";
